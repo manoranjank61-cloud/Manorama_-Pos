@@ -1,0 +1,1605 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Studio Manorama - Smart Billing, Barcode & POS v4.3</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- HTML5 QR / Barcode Scanner Library -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <!-- JsBarcode Library for high quality 1D Barcodes -->
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#fdf2f4',
+              100: '#fbe8ec',
+              500: '#b81d4a',
+              700: '#8e1538',
+              800: '#73112d',
+              900: '#570a20',
+            },
+            gold: {
+              400: '#e5b869',
+              500: '#d4a343',
+              600: '#b88628',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Yantramanav:wght@400;500;700&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', 'Yantramanav', sans-serif;
+      background-color: #f1f5f9;
+      color: #0f172a;
+    }
+    
+    #printable-invoice, #printable-barcode-sheet { display: none; }
+
+    @media print {
+      body * { visibility: hidden !important; }
+      
+      body.printing-invoice #printable-invoice, 
+      body.printing-invoice #printable-invoice * { 
+        visibility: visible !important; 
+      }
+      body.printing-invoice #printable-invoice {
+        display: block !important;
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        min-height: 100% !important;
+        margin: 0 !important;
+        padding: 12mm 15mm !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        box-sizing: border-box !important;
+      }
+
+      body.printing-barcode-sheet #printable-barcode-sheet, 
+      body.printing-barcode-sheet #printable-barcode-sheet * { 
+        visibility: visible !important; 
+      }
+      body.printing-barcode-sheet #printable-barcode-sheet {
+        display: block !important;
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 210mm !important;
+        margin: 0 !important;
+        padding: 10mm 8mm !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        box-sizing: border-box !important;
+      }
+
+      @page { 
+        size: A4 portrait; 
+        margin: 0; 
+      }
+    }
+
+    .barcode-sheet-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3.5mm 3.5mm;
+      width: 100%;
+    }
+    .barcode-sticker-cell {
+      border: 1px dashed #cbd5e1;
+      border-radius: 4px;
+      padding: 2.5mm 2mm;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 33mm;
+      box-sizing: border-box;
+      background: #ffffff;
+      overflow: hidden;
+      page-break-inside: avoid;
+    }
+    .barcode-sticker-blank {
+      border: 1px dashed #f1f5f9;
+      height: 33mm;
+      box-sizing: border-box;
+    }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased">
+
+  <!-- TOP HEADER -->
+  <header class="bg-gradient-to-r from-brand-900 via-brand-700 to-brand-800 text-white shadow-xl sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 py-3 sm:px-6 flex flex-col md:flex-row items-center justify-between gap-3">
+      <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-gold-500 to-gold-400 text-brand-900 flex items-center justify-center font-black text-xl shadow-md border-2 border-white/40">
+            SM
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">Studio Manorama</h1>
+              <span class="text-[10px] bg-gold-400 text-brand-950 font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm">POS v4.3</span>
+            </div>
+            <p class="text-xs text-brand-100 font-medium">Mob: 7542074417 | Vidyapati Nagar | Cosmetics, Parlour &amp; Gifts</p>
+          </div>
+        </div>
+
+        <div class="md:hidden flex items-center gap-2">
+          <button onclick="promptUserSwitch()" class="px-2.5 py-1 bg-white/10 text-white text-xs font-semibold rounded-lg border border-white/20">
+            <span id="mobile-role-label">👑 Admin</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+        <div class="hidden md:flex bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/20 items-center gap-2.5">
+          <div class="text-left">
+            <p class="text-[9px] text-brand-200 uppercase font-bold tracking-wider">Active User</p>
+            <p class="text-xs font-black text-white flex items-center gap-1" id="current-user-badge">
+              <span>👑</span> Admin
+            </p>
+          </div>
+          <button onclick="promptUserSwitch()" class="px-2.5 py-1 bg-gold-400 hover:bg-gold-500 text-brand-950 text-[11px] font-black rounded-lg shadow transition-all">
+            Switch PIN
+          </button>
+        </div>
+
+        <button onclick="openUpiModal()" class="px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold flex items-center gap-1.5 shadow transition-all">
+          <span>📲</span> GPay / UPI QR
+        </button>
+        <button onclick="openBackupModal()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 shadow transition-all">
+          <span>⚙️</span> Backup &amp; Reset
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="max-w-7xl mx-auto px-3 sm:px-6 w-full pt-4 flex-1">
+    
+    <!-- Navigation Tabs -->
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3 mb-4">
+      <nav class="flex gap-2">
+        <button id="tab-btn-billing" onclick="switchTab('billing')" class="px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all flex items-center gap-2 bg-brand-700 text-white shadow-md">
+          <span>🧾</span> Billing &amp; Daybook
+        </button>
+        <button id="tab-btn-inventory" onclick="switchTab('inventory')" class="px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all flex items-center gap-2 bg-white text-slate-700 hover:bg-slate-100 border border-slate-200">
+          <span>📦</span> Stock Master
+          <span id="tab-badge-lowstock" class="hidden ml-1 px-1.5 py-0.5 text-[10px] bg-rose-600 text-white font-black rounded-full">0</span>
+        </button>
+      </nav>
+
+      <div class="flex items-center gap-3">
+        <span id="live-clock" class="text-xs font-semibold text-slate-500 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">--:--</span>
+      </div>
+    </div>
+
+    <!-- TAB 1: BILLING & DAYBOOK -->
+    <div id="tab-content-billing" class="space-y-5">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        
+        <!-- Left Panel: Barcode Search & Catalog -->
+        <div class="lg:col-span-7 space-y-4">
+          
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+            <div class="flex flex-col sm:flex-row gap-2">
+              <div class="relative flex-1">
+                <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">🔍</span>
+                <input type="text" id="barcode-input" placeholder="Scan Barcode or type Product Name..." 
+                       oninput="handleSearchInput(this.value)"
+                       onkeydown="if(event.key==='Enter') handleEnterBarcode(this.value)"
+                       class="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none transition-all">
+                <div id="search-suggestions" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto z-20 divide-y divide-slate-100"></div>
+              </div>
+              
+              <div class="flex items-center gap-2">
+                <button onclick="toggleCameraScanner()" id="btn-camera-scan" class="flex-1 sm:flex-initial px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow transition-all">
+                  <span>📷</span> Camera Scan
+                </button>
+                <label class="cursor-pointer px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl flex items-center gap-1 border border-slate-300">
+                  <span>🖼️</span> File/Photo
+                  <input type="file" accept="image/*" capture="environment" id="scan-file-input" onchange="scanBarcodeFromImage(event)" class="hidden">
+                </label>
+              </div>
+            </div>
+
+            <!-- Scanner Box Area -->
+            <div id="scanner-wrapper" class="hidden mt-3 p-3 bg-slate-950 rounded-2xl border border-slate-800 text-center">
+              <div id="reader" class="w-full max-w-sm mx-auto overflow-hidden rounded-xl bg-black min-h-[220px]"></div>
+              <p class="text-xs text-slate-300 mt-2 font-medium">कैमरे के सामने बारकोड सीधा रखें</p>
+              <div class="flex justify-center gap-4 mt-2">
+                <button onclick="stopCameraScanner()" class="text-xs text-rose-400 hover:text-rose-300 font-bold">❌ बंद करें (Stop)</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Tap Categories -->
+          <div class="flex items-center gap-2 overflow-x-auto pb-1" id="category-chips">
+            <button onclick="filterCatalog('All')" class="px-3 py-1.5 rounded-full text-xs font-bold bg-brand-700 text-white shadow-sm whitespace-nowrap cat-chip active" data-cat="All">All Items</button>
+            <button onclick="filterCatalog('Cosmetics')" class="px-3 py-1.5 rounded-full text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 whitespace-nowrap cat-chip" data-cat="Cosmetics">Cosmetics</button>
+            <button onclick="filterCatalog('Perfumes')" class="px-3 py-1.5 rounded-full text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 whitespace-nowrap cat-chip" data-cat="Perfumes">Perfumes</button>
+            <button onclick="filterCatalog('Parlour')" class="px-3 py-1.5 rounded-full text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 whitespace-nowrap cat-chip" data-cat="Parlour">Parlour Services</button>
+            <button onclick="filterCatalog('Gifts')" class="px-3 py-1.5 rounded-full text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 whitespace-nowrap cat-chip" data-cat="Gifts">Gifts &amp; Photo</button>
+          </div>
+
+          <!-- Quick Catalog Grid -->
+          <div id="catalog-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[460px] overflow-y-auto pr-1"></div>
+        </div>
+
+        <!-- Right Panel: Cart & Billing -->
+        <div class="lg:col-span-5 space-y-4">
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col h-full">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+              <div>
+                <h3 class="font-extrabold text-slate-900 text-base">Current Invoice</h3>
+                <p class="text-[11px] text-slate-400" id="cart-item-count">0 items added</p>
+              </div>
+              <button onclick="clearCart()" class="text-xs text-rose-600 hover:text-rose-700 font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 rounded-lg">Clear All</button>
+            </div>
+
+            <!-- Customer Details -->
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <input type="text" id="cust-name" placeholder="Customer Name (Optional)" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-brand-500">
+              <input type="tel" id="cust-phone" placeholder="WhatsApp No. (10-digit)" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-brand-500">
+            </div>
+
+            <!-- Cart Items with Inline Price Editing -->
+            <div class="flex-1 overflow-y-auto max-h-[280px] divide-y divide-slate-100 pr-1" id="cart-items-container">
+              <div class="py-12 text-center text-slate-400 text-xs">
+                🛒 Cart is empty. Scan barcode or tap an item.
+              </div>
+            </div>
+
+            <!-- Calculation Summary -->
+            <div class="border-t border-slate-100 pt-3 mt-3 space-y-2 text-xs">
+              <div class="flex justify-between text-slate-600">
+                <span>Subtotal</span>
+                <span class="font-bold" id="bill-subtotal">₹0.00</span>
+              </div>
+              
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-slate-600">Discount (₹)</span>
+                <input type="number" id="bill-discount" value="0" min="0" oninput="calculateBill()" class="w-20 px-2 py-1 text-right text-xs bg-slate-50 border border-slate-300 rounded-lg font-semibold focus:outline-brand-500">
+              </div>
+
+              <div class="flex items-center justify-between text-slate-600">
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" id="bill-gst-toggle" onchange="calculateBill()" class="rounded text-brand-600 focus:ring-brand-500">
+                  <span>Add 18% GST (CGST 9% + SGST 9%)</span>
+                </label>
+                <span class="font-bold" id="bill-gst">₹0.00</span>
+              </div>
+
+              <div class="flex justify-between items-center text-base pt-2 border-t border-slate-200">
+                <span class="font-extrabold text-slate-900">Total Payable</span>
+                <span class="text-xl font-black text-brand-700" id="bill-grand-total">₹0.00</span>
+              </div>
+            </div>
+
+            <!-- Payment Mode Selector -->
+            <div class="grid grid-cols-3 gap-2 mt-4">
+              <button onclick="setPaymentMode('CASH')" id="pay-cash-btn" class="py-2 rounded-xl text-xs font-bold border-2 border-brand-700 bg-brand-50 text-brand-900 transition-all flex items-center justify-center gap-1">
+                💵 Cash
+              </button>
+              <button onclick="setPaymentMode('UPI')" id="pay-upi-btn" class="py-2 rounded-xl text-xs font-bold border-2 border-slate-200 text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-center gap-1">
+                📲 GPay / UPI
+              </button>
+              <button onclick="setPaymentMode('SPLIT')" id="pay-split-btn" class="py-2 rounded-xl text-xs font-bold border-2 border-slate-200 text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-center gap-1">
+                ⚖️ Split
+              </button>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="grid grid-cols-2 gap-2 mt-3">
+              <button onclick="checkoutAndPrint()" class="py-3 bg-brand-700 hover:bg-brand-800 text-white font-extrabold rounded-xl shadow-lg flex items-center justify-center gap-2 text-sm transition-all">
+                <span>🖨️</span> Save &amp; Print
+              </button>
+              <button onclick="checkoutAndWhatsApp()" class="py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl shadow-lg flex items-center justify-center gap-2 text-sm transition-all">
+                <span>💬</span> WhatsApp Bill
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Daybook & Recent Invoices -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 mb-3">
+          <div>
+            <h3 class="font-extrabold text-slate-900 text-base">Today's Daybook &amp; Sales</h3>
+            <p class="text-xs text-slate-400">Daily business overview and recent receipts</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="text-right">
+              <p class="text-[10px] uppercase font-bold text-slate-400">Today's Total</p>
+              <p class="text-sm font-black text-emerald-600" id="daybook-today-total">₹0.00</p>
+            </div>
+            <button onclick="exportInvoicesCsv()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-all">
+              📥 Export CSV
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-600">
+            <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
+              <tr>
+                <th class="py-2.5 px-3">Bill No.</th>
+                <th class="py-2.5 px-3">Time</th>
+                <th class="py-2.5 px-3">Customer</th>
+                <th class="py-2.5 px-3">Items</th>
+                <th class="py-2.5 px-3">Mode</th>
+                <th class="py-2.5 px-3 text-right">Amount</th>
+                <th class="py-2.5 px-3 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="daybook-table-body" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: STOCK MASTER -->
+    <div id="tab-content-inventory" class="hidden space-y-4">
+      <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2 flex-1">
+          <div class="relative w-full sm:w-64">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">🔍</span>
+            <input type="text" id="inventory-search" placeholder="Search product / barcode..." oninput="renderInventoryTable()" class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:bg-white focus:outline-brand-500">
+          </div>
+          
+          <select id="inventory-filter-cat" onchange="renderInventoryTable()" class="px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-brand-500">
+            <option value="All">All Categories</option>
+            <option value="Cosmetics">Cosmetics</option>
+            <option value="Perfumes">Perfumes</option>
+            <option value="Parlour">Parlour Services</option>
+            <option value="Gifts">Gifts &amp; Photo</option>
+          </select>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="openBatchBarcodeModal()" id="btn-batch-print" class="px-3.5 py-2 bg-gold-500 hover:bg-gold-600 text-brand-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow transition-all">
+            <span>🖨️</span> Print Selected (A4 Sheet) <span id="batch-selected-count" class="bg-brand-900 text-white text-[10px] px-1.5 py-0.2 rounded-full">0</span>
+          </button>
+
+          <button onclick="openProductModal()" class="px-4 py-2 bg-brand-700 hover:bg-brand-800 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition-all">
+            <span>➕</span> Add Product
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-600">
+            <thead class="bg-slate-100/70 text-slate-700 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
+              <tr>
+                <th class="py-3 px-3 text-center w-10">
+                  <input type="checkbox" id="select-all-stock" onchange="toggleSelectAllStock(this.checked)" class="rounded text-brand-700 focus:ring-brand-500 cursor-pointer">
+                </th>
+                <th class="py-3 px-3">Barcode / SKU</th>
+                <th class="py-3 px-3">Product Name</th>
+                <th class="py-3 px-3">Category</th>
+                <th class="py-3 px-3">Cost Price (₹)</th>
+                <th class="py-3 px-3">Selling Price (₹)</th>
+                <th class="py-3 px-3 text-center">Stock</th>
+                <th class="py-3 px-3 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody id="inventory-table-body" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MODALS -->
+  <!-- MODAL: ADD / EDIT PRODUCT -->
+  <div id="modal-product" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl border border-slate-100">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+        <h3 class="font-extrabold text-slate-900 text-base" id="modal-product-title">Add New Product</h3>
+        <button onclick="closeProductModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
+      </div>
+
+      <form id="product-form" onsubmit="handleSaveProduct(event)" class="space-y-3">
+        <input type="hidden" id="prod-id">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Barcode / SKU Code</label>
+          <div class="flex gap-2">
+            <input type="text" id="prod-barcode" required class="flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold focus:bg-white focus:outline-brand-500">
+            <button type="button" onclick="generateAutoBarcode()" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl">Auto</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Product Name</label>
+          <input type="text" id="prod-name" required placeholder="e.g., Lakme Matte Lipstick Cherry" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:outline-brand-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Category</label>
+            <select id="prod-category" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-brand-500">
+              <option value="Cosmetics">Cosmetics</option>
+              <option value="Perfumes">Perfumes</option>
+              <option value="Parlour">Parlour Services</option>
+              <option value="Gifts">Gifts &amp; Photo</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Stock Quantity</label>
+            <input type="number" id="prod-stock" min="0" value="10" required class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:outline-brand-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Cost Price (₹)</label>
+            <input type="number" id="prod-cost" step="any" min="0" required placeholder="0.00" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:outline-brand-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Selling Price (₹)</label>
+            <input type="number" id="prod-price" step="any" min="0" required placeholder="0.00" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-brand-700 focus:bg-white focus:outline-brand-500">
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+          <button type="button" onclick="closeProductModal()" class="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl">Cancel</button>
+          <button type="submit" class="px-5 py-2 text-xs font-extrabold bg-brand-700 hover:bg-brand-800 text-white rounded-xl shadow">Save Product</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: BATCH A4 BARCODE SHEET -->
+  <div id="modal-batch-barcode" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-white rounded-3xl max-w-2xl w-full p-5 shadow-2xl border border-slate-100 flex flex-col max-h-[90vh]">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+        <div>
+          <h3 class="font-black text-slate-900 text-base flex items-center gap-2">
+            <span>🏷️</span> Batch Barcode A4 Sheet Print
+          </h3>
+          <p class="text-xs text-slate-500">A4 शीट पर एक साथ सभी चुने हुए बारकोड प्रिंट करें।</p>
+        </div>
+        <button onclick="closeBatchBarcodeModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
+      </div>
+
+      <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3 mb-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-slate-700">Skip Used Labels (Offset):</span>
+          <input type="number" id="batch-offset-blank" min="0" max="23" value="0" onchange="renderBatchItemsList()" class="w-14 px-2 py-1 bg-white border border-slate-300 rounded-lg text-center font-bold">
+          <span class="text-[11px] text-slate-400">(अगर शीट पहले से आधी उपयोग हो)</span>
+        </div>
+        <div class="text-right">
+          <span class="font-extrabold text-brand-700 text-sm" id="batch-total-stickers-count">0</span>
+          <span class="text-slate-500 font-semibold"> Stickers Total</span>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto divide-y divide-slate-100 pr-1 max-h-60 mb-3 border border-slate-100 rounded-xl p-2" id="batch-items-container"></div>
+
+      <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+        <p class="text-xs text-slate-500">Format: <strong>A4 Sheet (3 x 8 = 24 Labels)</strong></p>
+        <div class="flex items-center gap-2">
+          <button onclick="closeBatchBarcodeModal()" class="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl">Cancel</button>
+          <button onclick="printBatchBarcodeSheet()" class="px-5 py-2.5 text-xs font-black bg-brand-700 hover:bg-brand-800 text-white rounded-xl shadow-lg flex items-center gap-2">
+            <span>🖨️</span> Print A4 Barcode Sheet
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: UPI QR -->
+  <div id="modal-upi" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border border-slate-100">
+      <div class="flex justify-end">
+        <button onclick="closeUpiModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
+      </div>
+      <div class="w-12 h-12 bg-violet-100 text-violet-700 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-2">📲</div>
+      <h3 class="font-black text-slate-900 text-lg">Google Pay / UPI QR</h3>
+      <p class="text-xs font-bold text-slate-500 mb-1">Manoranjan kumar</p>
+      <p class="text-[11px] font-mono text-brand-700 font-bold bg-brand-50 py-1 px-2 rounded-lg inline-block mb-3">manoranjank61-1@okicici</p>
+      <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 inline-block mb-3 shadow-inner">
+        <img id="upi-modal-qr-img" src="" alt="UPI QR Code" class="w-48 h-48 mx-auto object-contain rounded-lg">
+      </div>
+      <p class="text-xs text-slate-400 mb-4 font-medium">Madhya Bihar Gramin Bank 4473<br>Scan with any UPI App (GPay, PhonePe, Paytm)</p>
+      <button onclick="closeUpiModal()" class="w-full py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl">Close</button>
+    </div>
+  </div>
+
+  <!-- MODAL: BACKUP -->
+  <div id="modal-backup" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl border border-slate-100">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+        <h3 class="font-extrabold text-slate-900 text-base">Backup &amp; Data Tools</h3>
+        <button onclick="closeBackupModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
+      </div>
+      <div class="space-y-3">
+        <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200">
+          <h4 class="text-xs font-bold text-slate-800">Export All POS Data (JSON)</h4>
+          <p class="text-[11px] text-slate-500 mb-2">Save inventory, prices, and sales history on your computer/phone.</p>
+          <button onclick="exportBackupJson()" class="px-3 py-1.5 bg-brand-700 text-white text-xs font-bold rounded-lg shadow">Download Backup</button>
+        </div>
+        <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200">
+          <h4 class="text-xs font-bold text-slate-800">Restore POS Data</h4>
+          <p class="text-[11px] text-slate-500 mb-2">Upload a previously saved JSON file.</p>
+          <input type="file" id="import-file-input" accept=".json" onchange="importBackupJson(event)" class="text-xs text-slate-500 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-200 hover:file:bg-slate-300">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRINTABLE INVOICE (A4) -->
+  <div id="printable-invoice">
+    <div style="border-bottom: 2px solid #000; padding-bottom: 12px; margin-bottom: 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+          <h1 style="font-size: 24px; font-weight: 900; margin: 0; text-transform: uppercase;">Studio Manorama</h1>
+          <p style="font-size: 13px; font-weight: 700; margin: 2px 0;">Cosmetics, Beauty Parlour, Perfumes &amp; Gifts</p>
+          <p style="font-size: 11px; margin: 2px 0;">Vidyapati Nagar, Samastipur, Bihar</p>
+          <p style="font-size: 12px; font-weight: 800; margin: 2px 0;">Mob: +91 7542074417</p>
+        </div>
+        <div style="text-align: right;">
+          <h2 style="font-size: 18px; font-weight: 900; margin: 0;">TAX INVOICE</h2>
+          <p style="font-size: 11px; margin: 2px 0;" id="print-bill-no">INV-1001</p>
+          <p style="font-size: 11px; margin: 2px 0;" id="print-bill-date">27/10/2026</p>
+          <p style="font-size: 11px; margin: 2px 0;" id="print-bill-time">07:00 PM</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; margin-bottom: 16px; font-size: 12px; border-bottom: 1px solid #ccc; padding-bottom: 8px;">
+      <div><strong>Customer:</strong> <span id="print-cust-name">Walk-in</span></div>
+      <div><strong>Phone:</strong> <span id="print-cust-phone">--</span></div>
+      <div><strong>Payment Mode:</strong> <span id="print-pay-mode">CASH</span></div>
+    </div>
+
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 12px;">
+      <thead>
+        <tr style="border-bottom: 1.5px solid #000; text-align: left;">
+          <th style="padding: 6px 4px; width: 30px;">#</th>
+          <th style="padding: 6px 4px;">Item Description</th>
+          <th style="padding: 6px 4px; text-align: right; width: 60px;">Rate (₹)</th>
+          <th style="padding: 6px 4px; text-align: center; width: 40px;">Qty</th>
+          <th style="padding: 6px 4px; text-align: right; width: 80px;">Total (₹)</th>
+        </tr>
+      </thead>
+      <tbody id="print-table-body"></tbody>
+    </table>
+
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; border-top: 1.5px solid #000; padding-top: 12px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <img id="print-invoice-upi-qr" src="" style="width: 85px; height: 85px; border: 1px solid #ddd; padding: 2px;" alt="UPI QR">
+        <div style="font-size: 10px; line-height: 1.4;">
+          <strong>Scan &amp; Pay with any UPI App</strong><br>
+          GPay / PhonePe / Paytm<br>
+          UPI ID: <strong>manoranjank61-1@okicici</strong><br>
+          Name: <strong>Manoranjan kumar</strong>
+        </div>
+      </div>
+
+      <div style="width: 220px; font-size: 12px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+          <span>Subtotal:</span>
+          <span id="print-subtotal">₹0.00</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+          <span>Discount:</span>
+          <span id="print-discount">-₹0.00</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;" id="print-gst-row">
+          <span>GST (18%):</span>
+          <span id="print-gst">₹0.00</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: 900; border-top: 1px solid #000; padding-top: 4px; margin-top: 4px;">
+          <span>Grand Total:</span>
+          <span id="print-grand-total">₹0.00</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRINTABLE BARCODE A4 SHEET -->
+  <div id="printable-barcode-sheet">
+    <div class="barcode-sheet-grid" id="print-barcode-sheet-grid"></div>
+  </div>
+
+  <audio id="beep-audio" preload="auto">
+    <source src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU9vT18AAAAAAAEBAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5/gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusrS==" type="audio/wav">
+  </audio>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    const SHOP_PHONE = "7542074417";
+    const SHOP_UPI_ID = "manoranjank61-1@okicici";
+    const SHOP_PAYEE_NAME = "Manoranjan kumar";
+    const ADMIN_PIN = "1234";
+    const STAFF_PIN = "0000";
+
+    let currentRole = "Admin";
+    let catalog = [];
+    let cart = [];
+    let invoices = [];
+    let activePaymentMode = "CASH";
+    let selectedStockIds = new Set();
+    let html5QrScanner = null;
+    let batchPrintMap = {};
+
+    const sampleProducts = [
+      { id: "P101", barcode: "8901030752101", name: "Lakme Matte Lipstick Red", category: "Cosmetics", costPrice: 220, price: 349, stock: 15 },
+      { id: "P102", barcode: "8901030752102", name: "Maybelline Colossal Kajal", category: "Cosmetics", costPrice: 110, price: 180, stock: 24 },
+      { id: "P103", barcode: "8901030752103", name: "Fogg Body Spray 150ml", category: "Perfumes", costPrice: 150, price: 230, stock: 18 },
+      { id: "P104", barcode: "8901030752104", name: "Golden Pearl Beauty Cream", category: "Cosmetics", costPrice: 170, price: 260, stock: 8 },
+      { id: "P105", barcode: "8901030752105", name: "Bridal Facial Package", category: "Parlour", costPrice: 350, price: 1200, stock: 999 },
+      { id: "P106", barcode: "8901030752106", name: "Designer Photo Frame 8x12", category: "Gifts", costPrice: 140, price: 299, stock: 12 },
+    ];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadState();
+      renderCatalogGrid();
+      renderInventoryTable();
+      renderDaybookTable();
+      updateClock();
+      setInterval(updateClock, 1000);
+      setupDynamicUpiQr();
+    });
+
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('live-clock').innerText = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + " | " + now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function loadState() {
+      const savedCatalog = localStorage.getItem('sm_pos_catalog');
+      catalog = savedCatalog ? JSON.parse(savedCatalog) : sampleProducts;
+      const savedInvoices = localStorage.getItem('sm_pos_invoices');
+      invoices = savedInvoices ? JSON.parse(savedInvoices) : [];
+      saveState();
+    }
+
+    function saveState() {
+      localStorage.setItem('sm_pos_catalog', JSON.stringify(catalog));
+      localStorage.setItem('sm_pos_invoices', JSON.stringify(invoices));
+      updateLowStockBadge();
+    }
+
+    function updateLowStockBadge() {
+      const lowStockCount = catalog.filter(p => p.category !== 'Parlour' && p.stock <= 3).length;
+      const badge = document.getElementById('tab-badge-lowstock');
+      if (lowStockCount > 0) {
+        badge.innerText = lowStockCount;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    function switchTab(tab) {
+      const btnBilling = document.getElementById('tab-btn-billing');
+      const btnInventory = document.getElementById('tab-btn-inventory');
+      const tabBilling = document.getElementById('tab-content-billing');
+      const tabInventory = document.getElementById('tab-content-inventory');
+
+      if (tab === 'billing') {
+        tabBilling.classList.remove('hidden');
+        tabInventory.classList.add('hidden');
+        btnBilling.className = "px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all flex items-center gap-2 bg-brand-700 text-white shadow-md";
+        btnInventory.className = "px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all flex items-center gap-2 bg-white text-slate-700 hover:bg-slate-100 border border-slate-200";
+      } else {
+        tabBilling.classList.add('hidden');
+        tabInventory.classList.remove('hidden');
+        btnInventory.className = "px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all flex items-center gap-2 bg-brand-700 text-white shadow-md";
+        btnBilling.className = "px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-bold rounded-xl transition-all flex items-center gap-2 bg-white text-slate-700 hover:bg-slate-100 border border-slate-200";
+        renderInventoryTable();
+      }
+    }
+
+    function promptUserSwitch() {
+      const pin = prompt("Enter PIN (Admin: 1234, Staff: 0000):");
+      if (pin === ADMIN_PIN) {
+        currentRole = "Admin";
+        alert("Switched to Admin Role 👑");
+      } else if (pin === STAFF_PIN) {
+        currentRole = "Staff";
+        alert("Switched to Staff Role 👤");
+      } else if (pin !== null) {
+        alert("Invalid PIN!");
+      }
+      document.getElementById('current-user-badge').innerHTML = currentRole === 'Admin' ? '<span>👑</span> Admin' : '<span>👤</span> Staff';
+      document.getElementById('mobile-role-label').innerText = currentRole === 'Admin' ? '👑 Admin' : '👤 Staff';
+      renderInventoryTable();
+    }
+
+    function renderCatalogGrid(filterCat = 'All') {
+      const container = document.getElementById('catalog-grid');
+      container.innerHTML = '';
+      const filtered = filterCat === 'All' ? catalog : catalog.filter(c => c.category === filterCat);
+
+      filtered.forEach(prod => {
+        const div = document.createElement('div');
+        div.className = "bg-white p-3 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-brand-500 cursor-pointer transition-all flex flex-col justify-between";
+        div.onclick = () => addToCart(prod);
+        div.innerHTML = `
+          <div>
+            <span class="text-[9px] font-bold uppercase tracking-wider text-slate-400">${prod.category}</span>
+            <h4 class="text-xs font-bold text-slate-900 line-clamp-2 mt-0.5">${prod.name}</h4>
+          </div>
+          <div class="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+            <span class="text-xs font-black text-brand-700">₹${prod.price}</span>
+            <span class="text-[10px] text-slate-500 font-semibold">${prod.category === 'Parlour' ? 'Service' : prod.stock + ' in stock'}</span>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function filterCatalog(cat) {
+      document.querySelectorAll('.cat-chip').forEach(el => {
+        if (el.getAttribute('data-cat') === cat) {
+          el.className = "px-3 py-1.5 rounded-full text-xs font-bold bg-brand-700 text-white shadow-sm whitespace-nowrap cat-chip active";
+        } else {
+          el.className = "px-3 py-1.5 rounded-full text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 whitespace-nowrap cat-chip";
+        }
+      });
+      renderCatalogGrid(cat);
+    }
+
+    function addToCart(product) {
+      playBeep();
+      const existing = cart.find(item => item.id === product.id);
+      if (existing) {
+        existing.qty += 1;
+      } else {
+        cart.push({
+          id: product.id,
+          name: product.name,
+          barcode: product.barcode,
+          originalPrice: product.price,
+          price: product.price,
+          qty: 1
+        });
+      }
+      renderCart();
+    }
+
+    function updateCartItemPrice(index, newPrice) {
+      const p = parseFloat(newPrice);
+      if (!isNaN(p) && p >= 0) {
+        cart[index].price = p;
+        calculateBill();
+      }
+    }
+
+    function updateCartQty(index, change) {
+      cart[index].qty += change;
+      if (cart[index].qty <= 0) cart.splice(index, 1);
+      renderCart();
+    }
+
+    function removeCartItem(index) {
+      cart.splice(index, 1);
+      renderCart();
+    }
+
+    function clearCart() {
+      if (cart.length > 0 && confirm("Clear current invoice?")) {
+        cart = [];
+        renderCart();
+      }
+    }
+
+    function renderCart() {
+      const container = document.getElementById('cart-items-container');
+      const countLabel = document.getElementById('cart-item-count');
+
+      if (cart.length === 0) {
+        container.innerHTML = `<div class="py-12 text-center text-slate-400 text-xs">🛒 Cart is empty. Scan barcode or tap an item.</div>`;
+        countLabel.innerText = "0 items added";
+        calculateBill();
+        return;
+      }
+
+      countLabel.innerText = `${cart.reduce((sum, item) => sum + item.qty, 0)} items added`;
+      container.innerHTML = '';
+
+      cart.forEach((item, index) => {
+        const row = document.createElement('div');
+        row.className = "py-2.5 flex items-center justify-between gap-2";
+        row.innerHTML = `
+          <div class="flex-1 min-w-0">
+            <h5 class="text-xs font-bold text-slate-900 truncate">${item.name}</h5>
+            <div class="flex items-center gap-1.5 mt-1">
+              <span class="text-[10px] text-slate-400 font-semibold">Rate: ₹</span>
+              <input type="number" step="any" min="0" value="${item.price}" 
+                     oninput="updateCartItemPrice(${index}, this.value)"
+                     class="w-16 px-1.5 py-0.5 text-xs font-bold text-brand-800 bg-amber-50 border border-amber-300 rounded focus:bg-white focus:outline-brand-500">
+              ${item.price !== item.originalPrice ? `<span class="text-[9px] text-slate-400 line-through">₹${item.originalPrice}</span>` : ''}
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="flex items-center border border-slate-200 rounded-lg bg-slate-50">
+              <button onclick="updateCartQty(${index}, -1)" class="w-6 h-6 flex items-center justify-center text-slate-600 font-bold hover:bg-slate-200 rounded-l-lg">-</button>
+              <span class="w-6 text-center text-xs font-bold text-slate-800">${item.qty}</span>
+              <button onclick="updateCartQty(${index}, 1)" class="w-6 h-6 flex items-center justify-center text-slate-600 font-bold hover:bg-slate-200 rounded-r-lg">+</button>
+            </div>
+            <div class="w-16 text-right font-black text-xs text-slate-900">
+              ₹${(item.price * item.qty).toFixed(2)}
+            </div>
+            <button onclick="removeCartItem(${index})" class="text-slate-300 hover:text-rose-500 text-sm font-bold ml-1">&times;</button>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+
+      calculateBill();
+    }
+
+    function calculateBill() {
+      const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+      const discountInput = parseFloat(document.getElementById('bill-discount').value) || 0;
+      const gstToggle = document.getElementById('bill-gst-toggle').checked;
+      
+      const discountedSubtotal = Math.max(0, subtotal - discountInput);
+      const gst = gstToggle ? (discountedSubtotal * 0.18) : 0;
+      const grandTotal = Math.round(discountedSubtotal + gst);
+
+      document.getElementById('bill-subtotal').innerText = `₹${subtotal.toFixed(2)}`;
+      document.getElementById('bill-gst').innerText = `₹${gst.toFixed(2)}`;
+      document.getElementById('bill-grand-total').innerText = `₹${grandTotal.toFixed(2)}`;
+
+      return { subtotal, discount: discountInput, gst, grandTotal };
+    }
+
+    function setPaymentMode(mode) {
+      activePaymentMode = mode;
+      document.getElementById('pay-cash-btn').className = mode === 'CASH' ? 'py-2 rounded-xl text-xs font-bold border-2 border-brand-700 bg-brand-50 text-brand-900 transition-all flex items-center justify-center gap-1' : 'py-2 rounded-xl text-xs font-bold border-2 border-slate-200 text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-center gap-1';
+      document.getElementById('pay-upi-btn').className = mode === 'UPI' ? 'py-2 rounded-xl text-xs font-bold border-2 border-brand-700 bg-brand-50 text-brand-900 transition-all flex items-center justify-center gap-1' : 'py-2 rounded-xl text-xs font-bold border-2 border-slate-200 text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-center gap-1';
+      document.getElementById('pay-split-btn').className = mode === 'SPLIT' ? 'py-2 rounded-xl text-xs font-bold border-2 border-brand-700 bg-brand-50 text-brand-900 transition-all flex items-center justify-center gap-1' : 'py-2 rounded-xl text-xs font-bold border-2 border-slate-200 text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-center gap-1';
+    }
+
+    function handleSearchInput(query) {
+      const suggestions = document.getElementById('search-suggestions');
+      const val = query.trim().toLowerCase();
+      if (!val) {
+        suggestions.classList.add('hidden');
+        return;
+      }
+
+      const matches = catalog.filter(p => p.name.toLowerCase().includes(val) || p.barcode.includes(val));
+      if (matches.length === 0) {
+        suggestions.classList.add('hidden');
+        return;
+      }
+
+      suggestions.innerHTML = '';
+      matches.slice(0, 5).forEach(m => {
+        const item = document.createElement('div');
+        item.className = "p-2.5 hover:bg-brand-50 cursor-pointer flex justify-between items-center text-xs";
+        item.onclick = () => {
+          addToCart(m);
+          document.getElementById('barcode-input').value = '';
+          suggestions.classList.add('hidden');
+        };
+        item.innerHTML = `
+          <div>
+            <p class="font-bold text-slate-800">${m.name}</p>
+            <p class="text-[10px] text-slate-400 font-mono">${m.barcode} | ${m.category}</p>
+          </div>
+          <span class="font-extrabold text-brand-700">₹${m.price}</span>
+        `;
+        suggestions.appendChild(item);
+      });
+      suggestions.classList.remove('hidden');
+    }
+
+    function handleEnterBarcode(code) {
+      const trimmed = code.trim();
+      if (!trimmed) return;
+      const product = catalog.find(p => p.barcode === trimmed || p.name.toLowerCase() === trimmed.toLowerCase());
+      if (product) {
+        addToCart(product);
+        document.getElementById('barcode-input').value = '';
+        document.getElementById('search-suggestions').classList.add('hidden');
+      } else {
+        alert("Barcode: " + trimmed + " स्टॉक में नहीं मिला!");
+      }
+    }
+
+    // ==========================================
+    // CAMERA & PHOTO SCANNER FIX (ROBUST)
+    // ==========================================
+    async function toggleCameraScanner() {
+      const wrapper = document.getElementById('scanner-wrapper');
+      if (wrapper.classList.contains('hidden')) {
+        wrapper.classList.remove('hidden');
+        await startCameraScanner();
+      } else {
+        stopCameraScanner();
+      }
+    }
+
+    async function startCameraScanner() {
+      const wrapper = document.getElementById('scanner-wrapper');
+      
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error("SECURE_CONTEXT_REQUIRED");
+        }
+
+        if (html5QrScanner) {
+          try { await html5QrScanner.stop(); } catch(e) {}
+        }
+
+        html5QrScanner = new Html5Qrcode("reader");
+
+        const config = {
+          fps: 15,
+          qrbox: { width: 260, height: 160 },
+          aspectRatio: 1.333333
+        };
+
+        // Try rear/environment camera first
+        try {
+          await html5QrScanner.start(
+            { facingMode: { exact: "environment" } },
+            config,
+            onScanSuccess
+          );
+        } catch (camErr) {
+          // Fallback to normal facingMode
+          await html5QrScanner.start(
+            { facingMode: "environment" },
+            config,
+            onScanSuccess
+          );
+        }
+      } catch (err) {
+        console.warn("Camera start failed:", err);
+        wrapper.classList.add('hidden');
+        
+        // Show friendly alert with practical solution
+        alert(
+          "⚠️ कैमरा चालू नहीं हो सका!\n\n" +
+          "कारण: मोबाइल सुरक्षा नीति सीधे file:/// पर कैमरा ब्लॉक करती है।\n\n" +
+          "समाधान:\n" +
+          "1. ऊपर '🖼️ File/Photo' बटन दबाकर तुरंत फ़ोटो खींचकर बारकोड स्कैन करें।\n" +
+          "2. या इस फ़ाइल को Chrome में HTTPS लिंक / Live Server पर खोलें।"
+        );
+      }
+    }
+
+    function onScanSuccess(decodedText) {
+      playBeep();
+      handleEnterBarcode(decodedText);
+      stopCameraScanner();
+    }
+
+    function stopCameraScanner() {
+      if (html5QrScanner) {
+        html5QrScanner.stop().then(() => {
+          html5QrScanner.clear();
+          html5QrScanner = null;
+        }).catch(() => {});
+      }
+      document.getElementById('scanner-wrapper').classList.add('hidden');
+    }
+
+    // Scan from captured photo or file upload directly
+    function scanBarcodeFromImage(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const tempScanner = new Html5Qrcode("reader");
+      tempScanner.scanFile(file, true)
+        .then(decodedText => {
+          playBeep();
+          handleEnterBarcode(decodedText);
+          e.target.value = '';
+        })
+        .catch(err => {
+          alert("बारकोड साफ़ नहीं दिखा। कृपया अच्छी रोशनी में पास से फ़ोटो खींचें।");
+          e.target.value = '';
+        });
+    }
+
+    function playBeep() {
+      try {
+        const audio = document.getElementById('beep-audio');
+        audio.currentTime = 0;
+        audio.play().catch(() => {});
+      } catch(e) {}
+    }
+
+    // CHECKOUT & PRINT
+    function checkoutAndPrint() {
+      if (cart.length === 0) {
+        alert("Cart is empty!");
+        return;
+      }
+      const inv = recordInvoice();
+      preparePrintInvoice(inv);
+      document.body.className = "printing-invoice";
+      window.print();
+      document.body.className = "";
+      cart = [];
+      renderCart();
+      document.getElementById('cust-name').value = '';
+      document.getElementById('cust-phone').value = '';
+    }
+
+    // CHECKOUT & WHATSAPP
+    function checkoutAndWhatsApp() {
+      if (cart.length === 0) {
+        alert("Cart is empty!");
+        return;
+      }
+
+      const phone = document.getElementById('cust-phone').value.trim();
+      const inv = recordInvoice();
+
+      let itemLines = inv.items.map((it, idx) => `${idx + 1}. ${it.name} x ${it.qty} = ₹${(it.price * it.qty).toFixed(2)}`).join('\n');
+      const upiPayLink = `upi://pay?pa=${SHOP_UPI_ID}&pn=${encodeURIComponent(SHOP_PAYEE_NAME)}&am=${inv.grandTotal}&cu=INR`;
+
+      const msg = `💐 *Studio Manorama - Vidyapati Nagar* 💐\n` +
+                  `*Mob:* ${SHOP_PHONE}\n` +
+                  `*Invoice:* ${inv.billNo} | *Date:* ${inv.date}\n` +
+                  `*Customer:* ${inv.customerName || 'Walk-in'}\n` +
+                  `--------------------------------\n` +
+                  `${itemLines}\n` +
+                  `--------------------------------\n` +
+                  `*Subtotal:* ₹${inv.subtotal.toFixed(2)}\n` +
+                  (inv.discount > 0 ? `*Discount:* -₹${inv.discount.toFixed(2)}\n` : '') +
+                  (inv.gst > 0 ? `*GST (18%):* ₹${inv.gst.toFixed(2)}\n` : '') +
+                  `*Total Payable:* ₹${inv.grandTotal}\n` +
+                  `*Payment Mode:* ${inv.payMode}\n` +
+                  `--------------------------------\n` +
+                  `*Pay via UPI / GPay:* ${upiPayLink}\n` +
+                  `UPI ID: ${SHOP_UPI_ID}\n` +
+                  `--------------------------------\n` +
+                  `Thank you! Visit again.`;
+
+      let cleanPhone = phone.replace(/\D/g, '');
+      if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+      
+      const waUrl = cleanPhone.length >= 10 ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+      window.open(waUrl, '_blank');
+
+      cart = [];
+      renderCart();
+      document.getElementById('cust-name').value = '';
+      document.getElementById('cust-phone').value = '';
+    }
+
+    function recordInvoice() {
+      const calc = calculateBill();
+      const custName = document.getElementById('cust-name').value.trim() || 'Walk-in';
+      const custPhone = document.getElementById('cust-phone').value.trim() || '--';
+      const billNo = "SM-" + Math.floor(100000 + Math.random() * 900000);
+      const now = new Date();
+
+      const inv = {
+        billNo,
+        date: now.toLocaleDateString('en-IN'),
+        time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+        customerName: custName,
+        customerPhone: custPhone,
+        items: JSON.parse(JSON.stringify(cart)),
+        subtotal: calc.subtotal,
+        discount: calc.discount,
+        gst: calc.gst,
+        grandTotal: calc.grandTotal,
+        payMode: activePaymentMode
+      };
+
+      cart.forEach(c => {
+        const prod = catalog.find(p => p.id === c.id);
+        if (prod && prod.category !== 'Parlour') {
+          prod.stock = Math.max(0, prod.stock - c.qty);
+        }
+      });
+
+      invoices.unshift(inv);
+      saveState();
+      renderCatalogGrid();
+      renderInventoryTable();
+      renderDaybookTable();
+
+      return inv;
+    }
+
+    function preparePrintInvoice(inv) {
+      document.getElementById('print-bill-no').innerText = inv.billNo;
+      document.getElementById('print-bill-date').innerText = inv.date;
+      document.getElementById('print-bill-time').innerText = inv.time;
+      document.getElementById('print-cust-name').innerText = inv.customerName;
+      document.getElementById('print-cust-phone').innerText = inv.customerPhone;
+      document.getElementById('print-pay-mode').innerText = inv.payMode;
+
+      const tbody = document.getElementById('print-table-body');
+      tbody.innerHTML = '';
+      inv.items.forEach((it, i) => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = "1px solid #eee";
+        tr.innerHTML = `
+          <td style="padding: 6px 4px;">${i + 1}</td>
+          <td style="padding: 6px 4px; font-weight: 600;">${it.name}</td>
+          <td style="padding: 6px 4px; text-align: right;">₹${it.price.toFixed(2)}</td>
+          <td style="padding: 6px 4px; text-align: center;">${it.qty}</td>
+          <td style="padding: 6px 4px; text-align: right; font-weight: 700;">₹${(it.price * it.qty).toFixed(2)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('print-subtotal').innerText = `₹${inv.subtotal.toFixed(2)}`;
+      document.getElementById('print-discount').innerText = `-₹${inv.discount.toFixed(2)}`;
+      
+      const gstRow = document.getElementById('print-gst-row');
+      if (inv.gst > 0) {
+        gstRow.style.display = "flex";
+        document.getElementById('print-gst').innerText = `₹${inv.gst.toFixed(2)}`;
+      } else {
+        gstRow.style.display = "none";
+      }
+
+      document.getElementById('print-grand-total').innerText = `₹${inv.grandTotal.toFixed(2)}`;
+
+      const upiUrl = `upi://pay?pa=${SHOP_UPI_ID}&pn=${encodeURIComponent(SHOP_PAYEE_NAME)}&am=${inv.grandTotal}&cu=INR`;
+      document.getElementById('print-invoice-upi-qr').src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiUrl)}`;
+    }
+
+    function renderDaybookTable() {
+      const tbody = document.getElementById('daybook-table-body');
+      tbody.innerHTML = '';
+
+      const todayStr = new Date().toLocaleDateString('en-IN');
+      const todayTotal = invoices
+        .filter(inv => inv.date === todayStr)
+        .reduce((sum, inv) => sum + inv.grandTotal, 0);
+
+      document.getElementById('daybook-today-total').innerText = `₹${todayTotal.toFixed(2)}`;
+
+      if (invoices.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-400">No invoices generated yet.</td></tr>`;
+        return;
+      }
+
+      invoices.slice(0, 15).forEach(inv => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50";
+        tr.innerHTML = `
+          <td class="py-2.5 px-3 font-mono font-bold text-slate-900">${inv.billNo}</td>
+          <td class="py-2.5 px-3">${inv.time}</td>
+          <td class="py-2.5 px-3">${inv.customerName}</td>
+          <td class="py-2.5 px-3">${inv.items.length} items</td>
+          <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${inv.payMode === 'UPI' ? 'bg-violet-100 text-violet-800' : 'bg-emerald-100 text-emerald-800'}">${inv.payMode}</span></td>
+          <td class="py-2.5 px-3 text-right font-black text-slate-900">₹${inv.grandTotal}</td>
+          <td class="py-2.5 px-3 text-center">
+            <button onclick='reprintInvoice(${JSON.stringify(inv)})' class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold rounded">Print</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function reprintInvoice(inv) {
+      preparePrintInvoice(inv);
+      document.body.className = "printing-invoice";
+      window.print();
+      document.body.className = "";
+    }
+
+    function exportInvoicesCsv() {
+      if (invoices.length === 0) {
+        alert("No invoices to export!");
+        return;
+      }
+      let csv = "BillNo,Date,Time,Customer,Phone,Subtotal,Discount,GST,GrandTotal,PayMode\n";
+      invoices.forEach(i => {
+        csv += `"${i.billNo}","${i.date}","${i.time}","${i.customerName}","${i.customerPhone}",${i.subtotal},${i.discount},${i.gst},${i.grandTotal},"${i.payMode}"\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Daybook_Studio_Manorama_${new Date().toISOString().slice(0,10)}.csv`);
+      link.click();
+    }
+
+    // INVENTORY TABLE & BATCH SELECTION
+    function renderInventoryTable() {
+      const tbody = document.getElementById('inventory-table-body');
+      tbody.innerHTML = '';
+
+      const query = document.getElementById('inventory-search').value.trim().toLowerCase();
+      const cat = document.getElementById('inventory-filter-cat').value;
+
+      const filtered = catalog.filter(p => {
+        const matchesQuery = p.name.toLowerCase().includes(query) || p.barcode.includes(query);
+        const matchesCat = cat === 'All' || p.category === cat;
+        return matchesQuery && matchesCat;
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-400">No products found.</td></tr>`;
+        return;
+      }
+
+      filtered.forEach(p => {
+        const isSelected = selectedStockIds.has(p.id);
+        const tr = document.createElement('tr');
+        tr.className = `hover:bg-slate-50 ${isSelected ? 'bg-amber-50/40' : ''}`;
+        tr.innerHTML = `
+          <td class="py-3 px-3 text-center">
+            <input type="checkbox" onchange="toggleSelectStock('${p.id}', this.checked)" ${isSelected ? 'checked' : ''} class="stock-item-cb rounded text-brand-700 focus:ring-brand-500 cursor-pointer">
+          </td>
+          <td class="py-3 px-3 font-mono font-bold text-slate-900">${p.barcode}</td>
+          <td class="py-3 px-3 font-bold text-slate-800">${p.name}</td>
+          <td class="py-3 px-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">${p.category}</span></td>
+          
+          <td class="py-3 px-3">
+            <input type="number" step="any" min="0" value="${p.costPrice}" 
+                   onchange="updateProductDirectPrice('${p.id}', 'costPrice', this.value)"
+                   class="w-20 px-2 py-1 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-brand-500">
+          </td>
+
+          <td class="py-3 px-3">
+            <input type="number" step="any" min="0" value="${p.price}" 
+                   onchange="updateProductDirectPrice('${p.id}', 'price', this.value)"
+                   class="w-20 px-2 py-1 text-xs font-bold text-brand-700 bg-amber-50/70 border border-amber-300 rounded-lg focus:bg-white focus:outline-brand-500">
+          </td>
+
+          <td class="py-3 px-3 text-center">
+            ${p.category === 'Parlour' ? '<span class="text-slate-400 font-semibold">Service</span>' : `
+              <div class="inline-flex items-center gap-1">
+                <button onclick="adjustStock('${p.id}', -1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-xs font-bold">-</button>
+                <span class="w-8 font-black ${p.stock <= 3 ? 'text-rose-600 font-extrabold' : 'text-slate-800'}">${p.stock}</span>
+                <button onclick="adjustStock('${p.id}', 1)" class="w-5 h-5 bg-slate-100 hover:bg-slate-200 rounded text-xs font-bold">+</button>
+              </div>
+            `}
+          </td>
+
+          <td class="py-3 px-3 text-center">
+            <div class="flex items-center justify-center gap-1.5">
+              <button onclick="editProduct('${p.id}')" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold rounded">Edit</button>
+              <button onclick="deleteProduct('${p.id}')" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold rounded">&times;</button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      updateSelectedCountBadge();
+    }
+
+    function toggleSelectStock(id, isChecked) {
+      if (isChecked) selectedStockIds.add(id);
+      else selectedStockIds.delete(id);
+      updateSelectedCountBadge();
+    }
+
+    function toggleSelectAllStock(isChecked) {
+      const query = document.getElementById('inventory-search').value.trim().toLowerCase();
+      const cat = document.getElementById('inventory-filter-cat').value;
+      const filtered = catalog.filter(p => {
+        const matchesQuery = p.name.toLowerCase().includes(query) || p.barcode.includes(query);
+        const matchesCat = cat === 'All' || p.category === cat;
+        return matchesQuery && matchesCat;
+      });
+
+      filtered.forEach(p => {
+        if (isChecked) selectedStockIds.add(p.id);
+        else selectedStockIds.delete(p.id);
+      });
+      renderInventoryTable();
+    }
+
+    function updateSelectedCountBadge() {
+      const count = selectedStockIds.size;
+      document.getElementById('batch-selected-count').innerText = count;
+      const selectAll = document.getElementById('select-all-stock');
+      if (selectAll) selectAll.checked = count > 0 && count === catalog.length;
+    }
+
+    function updateProductDirectPrice(id, field, value) {
+      const val = parseFloat(value);
+      if (isNaN(val) || val < 0) return;
+      const prod = catalog.find(p => p.id === id);
+      if (prod) {
+        prod[field] = val;
+        saveState();
+        renderCatalogGrid();
+      }
+    }
+
+    function adjustStock(id, change) {
+      const prod = catalog.find(p => p.id === id);
+      if (prod) {
+        prod.stock = Math.max(0, prod.stock + change);
+        saveState();
+        renderInventoryTable();
+        renderCatalogGrid();
+      }
+    }
+
+    function openProductModal(prod = null) {
+      document.getElementById('modal-product').classList.remove('hidden');
+      if (prod) {
+        document.getElementById('modal-product-title').innerText = "Edit Product";
+        document.getElementById('prod-id').value = prod.id;
+        document.getElementById('prod-barcode').value = prod.barcode;
+        document.getElementById('prod-name').value = prod.name;
+        document.getElementById('prod-category').value = prod.category;
+        document.getElementById('prod-cost').value = prod.costPrice;
+        document.getElementById('prod-price').value = prod.price;
+        document.getElementById('prod-stock').value = prod.stock;
+      } else {
+        document.getElementById('modal-product-title').innerText = "Add New Product";
+        document.getElementById('product-form').reset();
+        document.getElementById('prod-id').value = '';
+        generateAutoBarcode();
+      }
+    }
+
+    function closeProductModal() {
+      document.getElementById('modal-product').classList.add('hidden');
+    }
+
+    function generateAutoBarcode() {
+      const randomCode = "890" + Math.floor(1000000000 + Math.random() * 9000000000);
+      document.getElementById('prod-barcode').value = randomCode;
+    }
+
+    function handleSaveProduct(e) {
+      e.preventDefault();
+      const id = document.getElementById('prod-id').value;
+      const barcode = document.getElementById('prod-barcode').value.trim();
+      const name = document.getElementById('prod-name').value.trim();
+      const category = document.getElementById('prod-category').value;
+      const costPrice = parseFloat(document.getElementById('prod-cost').value) || 0;
+      const price = parseFloat(document.getElementById('prod-price').value) || 0;
+      const stock = parseInt(document.getElementById('prod-stock').value) || 0;
+
+      if (id) {
+        const p = catalog.find(item => item.id === id);
+        if (p) {
+          p.barcode = barcode;
+          p.name = name;
+          p.category = category;
+          p.costPrice = costPrice;
+          p.price = price;
+          p.stock = stock;
+        }
+      } else {
+        const newProduct = {
+          id: "P" + Date.now(),
+          barcode,
+          name,
+          category,
+          costPrice,
+          price,
+          stock
+        };
+        catalog.unshift(newProduct);
+        selectedStockIds.add(newProduct.id);
+      }
+
+      saveState();
+      closeProductModal();
+      renderCatalogGrid();
+      renderInventoryTable();
+    }
+
+    function editProduct(id) {
+      const prod = catalog.find(p => p.id === id);
+      if (prod) openProductModal(prod);
+    }
+
+    function deleteProduct(id) {
+      if (confirm("Delete this product from stock?")) {
+        catalog = catalog.filter(p => p.id !== id);
+        selectedStockIds.delete(id);
+        saveState();
+        renderCatalogGrid();
+        renderInventoryTable();
+      }
+    }
+
+    // BATCH A4 BARCODE LOGIC
+    function openBatchBarcodeModal() {
+      if (selectedStockIds.size === 0) {
+        alert("कृपया पहले Inventory लिस्ट से कम से कम एक आइटम का Checkbox टिक करें!");
+        return;
+      }
+      batchPrintMap = {};
+      selectedStockIds.forEach(id => {
+        batchPrintMap[id] = 2;
+      });
+      renderBatchItemsList();
+      document.getElementById('modal-batch-barcode').classList.remove('hidden');
+    }
+
+    function closeBatchBarcodeModal() {
+      document.getElementById('modal-batch-barcode').classList.add('hidden');
+    }
+
+    function renderBatchItemsList() {
+      const container = document.getElementById('batch-items-container');
+      container.innerHTML = '';
+      let totalStickers = 0;
+
+      selectedStockIds.forEach(id => {
+        const p = catalog.find(item => item.id === id);
+        if (!p) return;
+
+        const count = batchPrintMap[id] || 1;
+        totalStickers += count;
+
+        const div = document.createElement('div');
+        div.className = "py-2 px-2 flex items-center justify-between gap-3 text-xs";
+        div.innerHTML = `
+          <div class="flex-1 min-w-0">
+            <h5 class="font-bold text-slate-800 truncate">${p.name}</h5>
+            <p class="text-[10px] text-slate-400 font-mono">${p.barcode} | ₹${p.price}</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-slate-500 font-semibold text-[11px]">Stickers:</span>
+            <input type="number" min="1" max="100" value="${count}" 
+                   onchange="updateBatchItemCount('${p.id}', this.value)"
+                   class="w-16 px-2 py-1 text-center font-bold bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-brand-500">
+            <button onclick="removeBatchItem('${p.id}')" class="text-rose-500 hover:text-rose-700 font-bold ml-1 text-sm">&times;</button>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+
+      document.getElementById('batch-total-stickers-count').innerText = totalStickers;
+    }
+
+    function updateBatchItemCount(id, val) {
+      const count = parseInt(val) || 1;
+      batchPrintMap[id] = Math.max(1, count);
+      renderBatchItemsList();
+    }
+
+    function removeBatchItem(id) {
+      selectedStockIds.delete(id);
+      delete batchPrintMap[id];
+      updateSelectedCountBadge();
+      renderInventoryTable();
+      if (selectedStockIds.size === 0) closeBatchBarcodeModal();
+      else renderBatchItemsList();
+    }
+
+    function printBatchBarcodeSheet() {
+      const grid = document.getElementById('print-barcode-sheet-grid');
+      grid.innerHTML = '';
+      const offsetBlanks = parseInt(document.getElementById('batch-offset-blank').value) || 0;
+
+      for (let b = 0; b < offsetBlanks; b++) {
+        const blank = document.createElement('div');
+        blank.className = "barcode-sticker-blank";
+        grid.appendChild(blank);
+      }
+
+      let stickerIndex = 0;
+      selectedStockIds.forEach(id => {
+        const prod = catalog.find(p => p.id === id);
+        if (!prod) return;
+
+        const count = batchPrintMap[id] || 1;
+        for (let i = 0; i < count; i++) {
+          const sticker = document.createElement('div');
+          sticker.className = "barcode-sticker-cell";
+          const svgId = `barcode-svg-sheet-${stickerIndex}`;
+          
+          sticker.innerHTML = `
+            <div style="font-size: 8px; font-weight: 900; text-transform: uppercase; color: #570a20; line-height: 1;">Studio Manorama</div>
+            <div style="font-size: 8.5px; font-weight: 700; color: #000; max-width: 58mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1.5px;">${prod.name}</div>
+            <svg id="${svgId}" style="width: 52mm; height: 16mm; margin: 1px 0;"></svg>
+            <div style="font-size: 9px; font-weight: 900; color: #000; line-height: 1;">MRP: ₹${prod.price.toFixed(2)}</div>
+          `;
+          grid.appendChild(sticker);
+
+          setTimeout(() => {
+            try {
+              JsBarcode(`#${svgId}`, prod.barcode, {
+                format: "CODE128",
+                width: 1.4,
+                height: 38,
+                displayValue: true,
+                fontSize: 9,
+                margin: 0
+              });
+            } catch(e) {}
+          }, 10);
+
+          stickerIndex++;
+        }
+      });
+
+      closeBatchBarcodeModal();
+
+      setTimeout(() => {
+        document.body.className = "printing-barcode-sheet";
+        window.print();
+        document.body.className = "";
+      }, 350);
+    }
+
+    function setupDynamicUpiQr() {
+      const upiUrl = `upi://pay?pa=${SHOP_UPI_ID}&pn=${encodeURIComponent(SHOP_PAYEE_NAME)}&cu=INR`;
+      const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(upiUrl)}`;
+      document.getElementById('upi-modal-qr-img').src = qrImgUrl;
+    }
+
+    function openUpiModal() {
+      document.getElementById('modal-upi').classList.remove('hidden');
+    }
+
+    function closeUpiModal() {
+      document.getElementById('modal-upi').classList.add('hidden');
+    }
+
+    function openBackupModal() {
+      document.getElementById('modal-backup').classList.remove('hidden');
+    }
+
+    function closeBackupModal() {
+      document.getElementById('modal-backup').classList.add('hidden');
+    }
+
+    function exportBackupJson() {
+      const data = {
+        catalog,
+        invoices,
+        exportDate: new Date().toISOString()
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Studio_Manorama_Backup_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+    }
+
+    function importBackupJson(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (parsed.catalog) catalog = parsed.catalog;
+          if (parsed.invoices) invoices = parsed.invoices;
+          saveState();
+          renderCatalogGrid();
+          renderInventoryTable();
+          renderDaybookTable();
+          alert("Backup data restored successfully!");
+          closeBackupModal();
+        } catch(err) {
+          alert("Invalid backup file!");
+        }
+      };
+      reader.readAsText(file);
+    }
+  </script>
+</body>
+</html>
