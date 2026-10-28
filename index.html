@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Studio Manorama - Smart Billing, Barcode & POS v4.3</title>
+  <title>Studio Manorama - Smart Billing, Barcode & POS v4.4</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- HTML5 QR / Barcode Scanner Library -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -132,7 +132,7 @@
           <div>
             <div class="flex items-center gap-2">
               <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">Studio Manorama</h1>
-              <span class="text-[10px] bg-gold-400 text-brand-950 font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm">POS v4.3</span>
+              <span class="text-[10px] bg-gold-400 text-brand-950 font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm">POS v4.4</span>
             </div>
             <p class="text-xs text-brand-100 font-medium">Mob: 7542074417 | Vidyapati Nagar | Cosmetics, Parlour &amp; Gifts</p>
           </div>
@@ -206,22 +206,22 @@
               </div>
               
               <div class="flex items-center gap-2">
-                <button onclick="toggleCameraScanner()" id="btn-camera-scan" class="flex-1 sm:flex-initial px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow transition-all">
+                <button onclick="toggleBillingCameraScanner()" id="btn-camera-scan" class="flex-1 sm:flex-initial px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow transition-all">
                   <span>📷</span> Camera Scan
                 </button>
                 <label class="cursor-pointer px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl flex items-center gap-1 border border-slate-300">
                   <span>🖼️</span> File/Photo
-                  <input type="file" accept="image/*" capture="environment" id="scan-file-input" onchange="scanBarcodeFromImage(event)" class="hidden">
+                  <input type="file" accept="image/*" capture="environment" id="scan-file-input" onchange="scanBarcodeFromImageBilling(event)" class="hidden">
                 </label>
               </div>
             </div>
 
-            <!-- Scanner Box Area -->
+            <!-- Billing Scanner Box Area -->
             <div id="scanner-wrapper" class="hidden mt-3 p-3 bg-slate-950 rounded-2xl border border-slate-800 text-center">
               <div id="reader" class="w-full max-w-sm mx-auto overflow-hidden rounded-xl bg-black min-h-[220px]"></div>
               <p class="text-xs text-slate-300 mt-2 font-medium">कैमरे के सामने बारकोड सीधा रखें</p>
               <div class="flex justify-center gap-4 mt-2">
-                <button onclick="stopCameraScanner()" class="text-xs text-rose-400 hover:text-rose-300 font-bold">❌ बंद करें (Stop)</button>
+                <button onclick="stopCameraScanner('reader', 'scanner-wrapper')" class="text-xs text-rose-400 hover:text-rose-300 font-bold">❌ बंद करें (Stop)</button>
               </div>
             </div>
           </div>
@@ -372,6 +372,11 @@
         </div>
 
         <div class="flex items-center gap-2">
+          <!-- QUICK SCAN TO ADD/UPDATE BUTTON -->
+          <button onclick="openInventoryQuickScan()" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow transition-all">
+            <span>📷</span> Scan Product
+          </button>
+
           <button onclick="openBatchBarcodeModal()" id="btn-batch-print" class="px-3.5 py-2 bg-gold-500 hover:bg-gold-600 text-brand-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow transition-all">
             <span>🖨️</span> Print Selected (A4 Sheet) <span id="batch-selected-count" class="bg-brand-900 text-white text-[10px] px-1.5 py-0.2 rounded-full">0</span>
           </button>
@@ -408,21 +413,46 @@
   </div>
 
   <!-- MODALS -->
-  <!-- MODAL: ADD / EDIT PRODUCT -->
+
+  <!-- MODAL: ADD / EDIT PRODUCT (WITH CAMERA & PHOTO SCAN INSIDE) -->
   <div id="modal-product" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl border border-slate-100">
+    <div class="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl border border-slate-100 max-h-[95vh] overflow-y-auto">
       <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-        <h3 class="font-extrabold text-slate-900 text-base" id="modal-product-title">Add New Product</h3>
+        <div>
+          <h3 class="font-extrabold text-slate-900 text-base" id="modal-product-title">Add New Product</h3>
+          <p class="text-[11px] text-slate-400">Barcode scan karein ya auto-generate karein</p>
+        </div>
         <button onclick="closeProductModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
+      </div>
+
+      <!-- Scanner inside Add Product Modal -->
+      <div id="modal-scanner-wrapper" class="hidden mb-4 p-3 bg-slate-950 rounded-2xl border border-slate-800 text-center">
+        <div id="modal-reader" class="w-full max-w-xs mx-auto overflow-hidden rounded-xl bg-black min-h-[180px]"></div>
+        <p class="text-xs text-slate-300 mt-2 font-medium">Product ka barcode camera ke samne rakhein</p>
+        <button type="button" onclick="stopCameraScanner('modal-reader', 'modal-scanner-wrapper')" class="mt-2 text-xs text-rose-400 hover:text-rose-300 font-bold">❌ Stop Camera</button>
       </div>
 
       <form id="product-form" onsubmit="handleSaveProduct(event)" class="space-y-3">
         <input type="hidden" id="prod-id">
+        
         <div>
           <label class="block text-xs font-bold text-slate-700 mb-1">Barcode / SKU Code</label>
-          <div class="flex gap-2">
-            <input type="text" id="prod-barcode" required class="flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold focus:bg-white focus:outline-brand-500">
-            <button type="button" onclick="generateAutoBarcode()" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl">Auto</button>
+          <div class="flex gap-1.5 flex-wrap">
+            <input type="text" id="prod-barcode" required placeholder="Scan or enter barcode" class="flex-1 min-w-[130px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold focus:bg-white focus:outline-brand-500">
+            
+            <!-- Camera Scan Button for Inventory -->
+            <button type="button" onclick="toggleModalCameraScanner()" class="px-2.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl flex items-center gap-1 shadow">
+              <span>📷</span> Scan
+            </button>
+            
+            <!-- File / Photo Button for Inventory -->
+            <label class="cursor-pointer px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl flex items-center gap-1 border border-slate-300">
+              <span>🖼️</span> Photo
+              <input type="file" accept="image/*" capture="environment" onchange="scanBarcodeFromImageModal(event)" class="hidden">
+            </label>
+
+            <!-- Auto Barcode Generator -->
+            <button type="button" onclick="generateAutoBarcode()" title="Auto generate barcode" class="px-2.5 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-bold rounded-xl">Auto</button>
           </div>
         </div>
 
@@ -474,7 +504,7 @@
           <h3 class="font-black text-slate-900 text-base flex items-center gap-2">
             <span>🏷️</span> Batch Barcode A4 Sheet Print
           </h3>
-          <p class="text-xs text-slate-500">A4 शीट पर एक साथ सभी चुने हुए बारकोड प्रिंट करें।</p>
+          <p class="text-xs text-slate-500">A4 sheet par ek saath sabhi chune huye barcode bina paper waste kiye print karein.</p>
         </div>
         <button onclick="closeBatchBarcodeModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
       </div>
@@ -483,7 +513,7 @@
         <div class="flex items-center gap-2">
           <span class="font-bold text-slate-700">Skip Used Labels (Offset):</span>
           <input type="number" id="batch-offset-blank" min="0" max="23" value="0" onchange="renderBatchItemsList()" class="w-14 px-2 py-1 bg-white border border-slate-300 rounded-lg text-center font-bold">
-          <span class="text-[11px] text-slate-400">(अगर शीट पहले से आधी उपयोग हो)</span>
+          <span class="text-[11px] text-slate-400">(Agar sheet pehle se aadhi used ho)</span>
         </div>
         <div class="text-right">
           <span class="font-extrabold text-brand-700 text-sm" id="batch-total-stickers-count">0</span>
@@ -558,8 +588,8 @@
         <div style="text-align: right;">
           <h2 style="font-size: 18px; font-weight: 900; margin: 0;">TAX INVOICE</h2>
           <p style="font-size: 11px; margin: 2px 0;" id="print-bill-no">INV-1001</p>
-          <p style="font-size: 11px; margin: 2px 0;" id="print-bill-date">27/10/2026</p>
-          <p style="font-size: 11px; margin: 2px 0;" id="print-bill-time">07:00 PM</p>
+          <p style="font-size: 11px; margin: 2px 0;" id="print-bill-date">28/10/2026</p>
+          <p style="font-size: 11px; margin: 2px 0;" id="print-bill-time">11:15 AM</p>
         </div>
       </div>
     </div>
@@ -638,11 +668,12 @@
     let invoices = [];
     let activePaymentMode = "CASH";
     let selectedStockIds = new Set();
-    let html5QrScanner = null;
+    let activeScanner = null;
     let batchPrintMap = {};
 
     const sampleProducts = [
-      { id: "P101", barcode: "8901030752101", name: "Lakme Matte Lipstick Red", category: "Cosmetics", costPrice: 220, price: 349, stock: 15 },
+      { id: "P100", barcode: "8907145211837", name: "ENVY BLCK", category: "Perfumes", costPrice: 119.4, price: 199, stock: 12 },
+      { id: "P101", barcode: "8901030752101", name: "Lakme Matte Lipstick Red", category: "Cosmetics", costPrice: 220, price: 349, stock: 14 },
       { id: "P102", barcode: "8901030752102", name: "Maybelline Colossal Kajal", category: "Cosmetics", costPrice: 110, price: 180, stock: 24 },
       { id: "P103", barcode: "8901030752103", name: "Fogg Body Spray 150ml", category: "Perfumes", costPrice: 150, price: 230, stock: 18 },
       { id: "P104", barcode: "8901030752104", name: "Golden Pearl Beauty Cream", category: "Cosmetics", costPrice: 170, price: 260, stock: 8 },
@@ -922,86 +953,67 @@
     }
 
     // ==========================================
-    // CAMERA & PHOTO SCANNER FIX (ROBUST)
+    // CAMERA ENGINE (SHARED FOR BILLING & MODAL)
     // ==========================================
-    async function toggleCameraScanner() {
-      const wrapper = document.getElementById('scanner-wrapper');
-      if (wrapper.classList.contains('hidden')) {
-        wrapper.classList.remove('hidden');
-        await startCameraScanner();
-      } else {
-        stopCameraScanner();
-      }
-    }
-
-    async function startCameraScanner() {
-      const wrapper = document.getElementById('scanner-wrapper');
+    async function startGenericScanner(elementId, wrapperId, onSuccessCallback) {
+      const wrapper = document.getElementById(wrapperId);
       
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           throw new Error("SECURE_CONTEXT_REQUIRED");
         }
 
-        if (html5QrScanner) {
-          try { await html5QrScanner.stop(); } catch(e) {}
+        if (activeScanner) {
+          try { await activeScanner.stop(); } catch(e) {}
         }
 
-        html5QrScanner = new Html5Qrcode("reader");
-
+        activeScanner = new Html5Qrcode(elementId);
         const config = {
           fps: 15,
-          qrbox: { width: 260, height: 160 },
+          qrbox: { width: 250, height: 160 },
           aspectRatio: 1.333333
         };
 
-        // Try rear/environment camera first
         try {
-          await html5QrScanner.start(
-            { facingMode: { exact: "environment" } },
-            config,
-            onScanSuccess
-          );
+          await activeScanner.start({ facingMode: { exact: "environment" } }, config, onSuccessCallback);
         } catch (camErr) {
-          // Fallback to normal facingMode
-          await html5QrScanner.start(
-            { facingMode: "environment" },
-            config,
-            onScanSuccess
-          );
+          await activeScanner.start({ facingMode: "environment" }, config, onSuccessCallback);
         }
       } catch (err) {
         console.warn("Camera start failed:", err);
         wrapper.classList.add('hidden');
-        
-        // Show friendly alert with practical solution
-        alert(
-          "⚠️ कैमरा चालू नहीं हो सका!\n\n" +
-          "कारण: मोबाइल सुरक्षा नीति सीधे file:/// पर कैमरा ब्लॉक करती है।\n\n" +
-          "समाधान:\n" +
-          "1. ऊपर '🖼️ File/Photo' बटन दबाकर तुरंत फ़ोटो खींचकर बारकोड स्कैन करें।\n" +
-          "2. या इस फ़ाइल को Chrome में HTTPS लिंक / Live Server पर खोलें।"
-        );
+        alert("⚠️ कैमरा चालू नहीं हो सका!\n\nफ़ोटो खींचने के लिए 'Photo' बटन का उपयोग करें, या ब्राउज़र में HTTPS पर चलाएं।");
       }
     }
 
-    function onScanSuccess(decodedText) {
-      playBeep();
-      handleEnterBarcode(decodedText);
-      stopCameraScanner();
-    }
-
-    function stopCameraScanner() {
-      if (html5QrScanner) {
-        html5QrScanner.stop().then(() => {
-          html5QrScanner.clear();
-          html5QrScanner = null;
-        }).catch(() => {});
+    async function stopCameraScanner(elementId, wrapperId) {
+      if (activeScanner) {
+        try {
+          await activeScanner.stop();
+          activeScanner.clear();
+        } catch(e) {}
+        activeScanner = null;
       }
-      document.getElementById('scanner-wrapper').classList.add('hidden');
+      const wrapper = document.getElementById(wrapperId);
+      if (wrapper) wrapper.classList.add('hidden');
     }
 
-    // Scan from captured photo or file upload directly
-    function scanBarcodeFromImage(e) {
+    // BILLING CAMERA
+    async function toggleBillingCameraScanner() {
+      const wrapper = document.getElementById('scanner-wrapper');
+      if (wrapper.classList.contains('hidden')) {
+        wrapper.classList.remove('hidden');
+        await startGenericScanner('reader', 'scanner-wrapper', (decodedText) => {
+          playBeep();
+          handleEnterBarcode(decodedText);
+          stopCameraScanner('reader', 'scanner-wrapper');
+        });
+      } else {
+        stopCameraScanner('reader', 'scanner-wrapper');
+      }
+    }
+
+    function scanBarcodeFromImageBilling(e) {
       const file = e.target.files[0];
       if (!file) return;
 
@@ -1012,10 +1024,72 @@
           handleEnterBarcode(decodedText);
           e.target.value = '';
         })
-        .catch(err => {
+        .catch(() => {
           alert("बारकोड साफ़ नहीं दिखा। कृपया अच्छी रोशनी में पास से फ़ोटो खींचें।");
           e.target.value = '';
         });
+    }
+
+    // INVENTORY MODAL CAMERA SCANNER
+    async function toggleModalCameraScanner() {
+      const wrapper = document.getElementById('modal-scanner-wrapper');
+      if (wrapper.classList.contains('hidden')) {
+        wrapper.classList.remove('hidden');
+        await startGenericScanner('modal-reader', 'modal-scanner-wrapper', (decodedText) => {
+          playBeep();
+          applyScannedBarcodeToModal(decodedText);
+          stopCameraScanner('modal-reader', 'modal-scanner-wrapper');
+        });
+      } else {
+        stopCameraScanner('modal-reader', 'modal-scanner-wrapper');
+      }
+    }
+
+    function scanBarcodeFromImageModal(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const tempScanner = new Html5Qrcode("modal-reader");
+      tempScanner.scanFile(file, true)
+        .then(decodedText => {
+          playBeep();
+          applyScannedBarcodeToModal(decodedText);
+          e.target.value = '';
+        })
+        .catch(() => {
+          alert("बारकोड साफ़ नहीं दिखा। कृपया अच्छी रोशनी में पास से फ़ोटो खींचें।");
+          e.target.value = '';
+        });
+    }
+
+    // APPLY SCANNED BARCODE TO INVENTORY MODAL
+    function applyScannedBarcodeToModal(scannedCode) {
+      const barcodeInput = document.getElementById('prod-barcode');
+      barcodeInput.value = scannedCode.trim();
+
+      // Check if product already exists with this barcode
+      const existing = catalog.find(p => p.barcode === scannedCode.trim());
+      if (existing) {
+        // Pre-fill existing data to easily update stock/price
+        document.getElementById('modal-product-title').innerText = "Edit Existing Product";
+        document.getElementById('prod-id').value = existing.id;
+        document.getElementById('prod-name').value = existing.name;
+        document.getElementById('prod-category').value = existing.category;
+        document.getElementById('prod-cost').value = existing.costPrice;
+        document.getElementById('prod-price').value = existing.price;
+        document.getElementById('prod-stock').value = existing.stock;
+        alert(`यह बारकोड (${scannedCode}) पहले से "${existing.name}" के नाम से दर्ज है। आप इसका स्टॉक या रेट यहाँ सीधे अपडेट कर सकते हैं।`);
+      } else {
+        document.getElementById('prod-name').focus();
+      }
+    }
+
+    // QUICK SCAN FROM INVENTORY MAIN BAR
+    function openInventoryQuickScan() {
+      openProductModal();
+      setTimeout(() => {
+        toggleModalCameraScanner();
+      }, 300);
     }
 
     function playBeep() {
@@ -1357,6 +1431,7 @@
     }
 
     function closeProductModal() {
+      stopCameraScanner('modal-reader', 'modal-scanner-wrapper');
       document.getElementById('modal-product').classList.add('hidden');
     }
 
@@ -1423,7 +1498,7 @@
     // BATCH A4 BARCODE LOGIC
     function openBatchBarcodeModal() {
       if (selectedStockIds.size === 0) {
-        alert("कृपया पहले Inventory लिस्ट से कम से कम एक आइटम का Checkbox टिक करें!");
+        alert("Kripya pehle Inventory list se kam se kam ek item ka Checkbox tick karein!");
         return;
       }
       batchPrintMap = {};
