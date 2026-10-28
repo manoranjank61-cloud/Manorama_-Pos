@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Studio Manorama - Smart Billing, Barcode & POS v4.4</title>
+  <title>Studio Manorama - Smart Billing, Barcode & POS v4.5 Cloud</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- HTML5 QR / Barcode Scanner Library -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -132,7 +132,7 @@
           <div>
             <div class="flex items-center gap-2">
               <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">Studio Manorama</h1>
-              <span class="text-[10px] bg-gold-400 text-brand-950 font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm">POS v4.4</span>
+              <span class="text-[10px] bg-gold-400 text-brand-950 font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm">Cloud v4.5</span>
             </div>
             <p class="text-xs text-brand-100 font-medium">Mob: 7542074417 | Vidyapati Nagar | Cosmetics, Parlour &amp; Gifts</p>
           </div>
@@ -146,6 +146,11 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+        <!-- Live Cloud Sync Button -->
+        <button onclick="fetchCloudData(true)" id="btn-cloud-sync" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow transition-all">
+          <span id="sync-icon">☁️</span> <span id="sync-text">Cloud Sync</span>
+        </button>
+
         <div class="hidden md:flex bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/20 items-center gap-2.5">
           <div class="text-left">
             <p class="text-[9px] text-brand-200 uppercase font-bold tracking-wider">Active User</p>
@@ -162,7 +167,7 @@
           <span>📲</span> GPay / UPI QR
         </button>
         <button onclick="openBackupModal()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1.5 shadow transition-all">
-          <span>⚙️</span> Backup &amp; Reset
+          <span>⚙️</span> Backup
         </button>
       </div>
     </div>
@@ -183,6 +188,7 @@
       </nav>
 
       <div class="flex items-center gap-3">
+        <span id="cloud-status-badge" class="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">● Cloud Connected</span>
         <span id="live-clock" class="text-xs font-semibold text-slate-500 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">--:--</span>
       </div>
     </div>
@@ -321,7 +327,7 @@
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 mb-3">
           <div>
             <h3 class="font-extrabold text-slate-900 text-base">Today's Daybook &amp; Sales</h3>
-            <p class="text-xs text-slate-400">Daily business overview and recent receipts</p>
+            <p class="text-xs text-slate-400">Daily business overview and recent receipts (Live Cloud Synced)</p>
           </div>
           <div class="flex items-center gap-3">
             <div class="text-right">
@@ -414,7 +420,7 @@
 
   <!-- MODALS -->
 
-  <!-- MODAL: ADD / EDIT PRODUCT (WITH CAMERA & PHOTO SCAN INSIDE) -->
+  <!-- MODAL: ADD / EDIT PRODUCT -->
   <div id="modal-product" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl border border-slate-100 max-h-[95vh] overflow-y-auto">
       <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
@@ -425,7 +431,6 @@
         <button onclick="closeProductModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
       </div>
 
-      <!-- Scanner inside Add Product Modal -->
       <div id="modal-scanner-wrapper" class="hidden mb-4 p-3 bg-slate-950 rounded-2xl border border-slate-800 text-center">
         <div id="modal-reader" class="w-full max-w-xs mx-auto overflow-hidden rounded-xl bg-black min-h-[180px]"></div>
         <p class="text-xs text-slate-300 mt-2 font-medium">Product ka barcode camera ke samne rakhein</p>
@@ -439,19 +444,13 @@
           <label class="block text-xs font-bold text-slate-700 mb-1">Barcode / SKU Code</label>
           <div class="flex gap-1.5 flex-wrap">
             <input type="text" id="prod-barcode" required placeholder="Scan or enter barcode" class="flex-1 min-w-[130px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold focus:bg-white focus:outline-brand-500">
-            
-            <!-- Camera Scan Button for Inventory -->
             <button type="button" onclick="toggleModalCameraScanner()" class="px-2.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl flex items-center gap-1 shadow">
               <span>📷</span> Scan
             </button>
-            
-            <!-- File / Photo Button for Inventory -->
             <label class="cursor-pointer px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl flex items-center gap-1 border border-slate-300">
               <span>🖼️</span> Photo
               <input type="file" accept="image/*" capture="environment" onchange="scanBarcodeFromImageModal(event)" class="hidden">
             </label>
-
-            <!-- Auto Barcode Generator -->
             <button type="button" onclick="generateAutoBarcode()" title="Auto generate barcode" class="px-2.5 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-bold rounded-xl">Auto</button>
           </div>
         </div>
@@ -490,7 +489,7 @@
 
         <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
           <button type="button" onclick="closeProductModal()" class="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl">Cancel</button>
-          <button type="submit" class="px-5 py-2 text-xs font-extrabold bg-brand-700 hover:bg-brand-800 text-white rounded-xl shadow">Save Product</button>
+          <button type="submit" class="px-5 py-2 text-xs font-extrabold bg-brand-700 hover:bg-brand-800 text-white rounded-xl shadow">Save &amp; Sync Product</button>
         </div>
       </form>
     </div>
@@ -561,9 +560,14 @@
         <button onclick="closeBackupModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
       </div>
       <div class="space-y-3">
+        <div class="p-3 bg-emerald-50 rounded-2xl border border-emerald-200">
+          <h4 class="text-xs font-bold text-emerald-900">Google Sheet Direct Sync</h4>
+          <p class="text-[11px] text-emerald-700 mb-2">Aapka pura stock aur invoices direct Google Drive sheet se connected hain.</p>
+          <button onclick="forceFullUploadToCloud()" class="px-3 py-1.5 bg-emerald-700 text-white text-xs font-bold rounded-lg shadow">Push All Stock to Sheet</button>
+        </div>
         <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200">
           <h4 class="text-xs font-bold text-slate-800">Export All POS Data (JSON)</h4>
-          <p class="text-[11px] text-slate-500 mb-2">Save inventory, prices, and sales history on your computer/phone.</p>
+          <p class="text-[11px] text-slate-500 mb-2">Save inventory, prices, and sales history offline.</p>
           <button onclick="exportBackupJson()" class="px-3 py-1.5 bg-brand-700 text-white text-xs font-bold rounded-lg shadow">Download Backup</button>
         </div>
         <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200">
@@ -656,6 +660,9 @@
 
   <!-- JAVASCRIPT LOGIC -->
   <script>
+    // YOUR LIVE GOOGLE APPS SCRIPT WEB APP BACKEND
+    const BACKEND_API_URL = "https://script.google.com/macros/s/AKfycbygDqAQuQ_Y3rPpyAnDoHZxlxH0JvWsHRVIcPKzfhXzIuFxahmXl8I4hj_8otOpxlwa/exec";
+
     const SHOP_PHONE = "7542074417";
     const SHOP_UPI_ID = "manoranjank61-1@okicici";
     const SHOP_PAYEE_NAME = "Manoranjan kumar";
@@ -689,6 +696,9 @@
       updateClock();
       setInterval(updateClock, 1000);
       setupDynamicUpiQr();
+      
+      // Auto-sync data from Google Sheet on startup
+      fetchCloudData(false);
     });
 
     function updateClock() {
@@ -708,6 +718,90 @@
       localStorage.setItem('sm_pos_catalog', JSON.stringify(catalog));
       localStorage.setItem('sm_pos_invoices', JSON.stringify(invoices));
       updateLowStockBadge();
+    }
+
+    // ==========================================
+    // CLOUD SYNC ENGINE (GOOGLE SHEETS 2-WAY)
+    // ==========================================
+    async function fetchCloudData(showFeedback = false) {
+      const syncBtn = document.getElementById('btn-cloud-sync');
+      const syncIcon = document.getElementById('sync-icon');
+      const syncText = document.getElementById('sync-text');
+
+      if (syncIcon) syncIcon.innerText = "⏳";
+      if (syncText) syncText.innerText = "Syncing...";
+
+      try {
+        const response = await fetch(`${BACKEND_API_URL}?action=syncAll`);
+        const data = await response.json();
+
+        let updated = false;
+
+        if (data.inventory && Array.isArray(data.inventory) && data.inventory.length > 0) {
+          // Normalize types from sheet
+          catalog = data.inventory.map(item => ({
+            ...item,
+            barcode: String(item.barcode).replace(/^'/, ''),
+            costPrice: Number(item.costPrice) || 0,
+            price: Number(item.price) || 0,
+            stock: Number(item.stock) || 0
+          }));
+          localStorage.setItem('sm_pos_catalog', JSON.stringify(catalog));
+          renderCatalogGrid();
+          renderInventoryTable();
+          updated = true;
+        }
+
+        if (data.invoices && Array.isArray(data.invoices) && data.invoices.length > 0) {
+          invoices = data.invoices;
+          localStorage.setItem('sm_pos_invoices', JSON.stringify(invoices));
+          renderDaybookTable();
+          updated = true;
+        }
+
+        if (showFeedback) {
+          alert("✅ Google Sheet se sara data Mobile & PC me successfully sync ho gaya!");
+        }
+      } catch(err) {
+        console.warn("Cloud sync offline or error:", err);
+        if (showFeedback) {
+          alert("Cloud sync me samasya aayi. Kripya internet connection check karein.");
+        }
+      } finally {
+        if (syncIcon) syncIcon.innerText = "☁️";
+        if (syncText) syncText.innerText = "Cloud Sync";
+      }
+    }
+
+    async function syncInvoiceToCloud(inv) {
+      try {
+        fetch(BACKEND_API_URL, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "saveInvoice", data: inv })
+        });
+      } catch(e) {
+        console.warn("Could not save invoice to cloud immediately", e);
+      }
+    }
+
+    async function syncInventoryToCloud() {
+      try {
+        fetch(BACKEND_API_URL, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "syncInventory", data: catalog })
+        });
+      } catch(e) {
+        console.warn("Could not sync inventory to cloud immediately", e);
+      }
+    }
+
+    function forceFullUploadToCloud() {
+      syncInventoryToCloud();
+      alert("Aapka sara stock Google Sheet me upload command bhej diya gaya hai!");
     }
 
     function updateLowStockBadge() {
@@ -953,7 +1047,7 @@
     }
 
     // ==========================================
-    // CAMERA ENGINE (SHARED FOR BILLING & MODAL)
+    // CAMERA ENGINE
     // ==========================================
     async function startGenericScanner(elementId, wrapperId, onSuccessCallback) {
       const wrapper = document.getElementById(wrapperId);
@@ -998,7 +1092,6 @@
       if (wrapper) wrapper.classList.add('hidden');
     }
 
-    // BILLING CAMERA
     async function toggleBillingCameraScanner() {
       const wrapper = document.getElementById('scanner-wrapper');
       if (wrapper.classList.contains('hidden')) {
@@ -1030,7 +1123,6 @@
         });
     }
 
-    // INVENTORY MODAL CAMERA SCANNER
     async function toggleModalCameraScanner() {
       const wrapper = document.getElementById('modal-scanner-wrapper');
       if (wrapper.classList.contains('hidden')) {
@@ -1062,15 +1154,12 @@
         });
     }
 
-    // APPLY SCANNED BARCODE TO INVENTORY MODAL
     function applyScannedBarcodeToModal(scannedCode) {
       const barcodeInput = document.getElementById('prod-barcode');
       barcodeInput.value = scannedCode.trim();
 
-      // Check if product already exists with this barcode
       const existing = catalog.find(p => p.barcode === scannedCode.trim());
       if (existing) {
-        // Pre-fill existing data to easily update stock/price
         document.getElementById('modal-product-title').innerText = "Edit Existing Product";
         document.getElementById('prod-id').value = existing.id;
         document.getElementById('prod-name').value = existing.name;
@@ -1084,7 +1173,6 @@
       }
     }
 
-    // QUICK SCAN FROM INVENTORY MAIN BAR
     function openInventoryQuickScan() {
       openProductModal();
       setTimeout(() => {
@@ -1100,7 +1188,7 @@
       } catch(e) {}
     }
 
-    // CHECKOUT & PRINT
+    // CHECKOUT & PRINT (SYNC TO CLOUD)
     function checkoutAndPrint() {
       if (cart.length === 0) {
         alert("Cart is empty!");
@@ -1117,7 +1205,7 @@
       document.getElementById('cust-phone').value = '';
     }
 
-    // CHECKOUT & WHATSAPP
+    // CHECKOUT & WHATSAPP (SYNC TO CLOUD)
     function checkoutAndWhatsApp() {
       if (cart.length === 0) {
         alert("Cart is empty!");
@@ -1193,6 +1281,9 @@
       renderCatalogGrid();
       renderInventoryTable();
       renderDaybookTable();
+
+      // Trigger automatic cloud sync to Google Sheets
+      syncInvoiceToCloud(inv);
 
       return inv;
     }
@@ -1304,7 +1395,7 @@
       const cat = document.getElementById('inventory-filter-cat').value;
 
       const filtered = catalog.filter(p => {
-        const matchesQuery = p.name.toLowerCase().includes(query) || p.barcode.includes(query);
+        const matchesQuery = p.name.toLowerCase().includes(query) || String(p.barcode).includes(query);
         const matchesCat = cat === 'All' || p.category === cat;
         return matchesQuery && matchesCat;
       });
@@ -1371,7 +1462,7 @@
       const query = document.getElementById('inventory-search').value.trim().toLowerCase();
       const cat = document.getElementById('inventory-filter-cat').value;
       const filtered = catalog.filter(p => {
-        const matchesQuery = p.name.toLowerCase().includes(query) || p.barcode.includes(query);
+        const matchesQuery = p.name.toLowerCase().includes(query) || String(p.barcode).includes(query);
         const matchesCat = cat === 'All' || p.category === cat;
         return matchesQuery && matchesCat;
       });
@@ -1398,6 +1489,7 @@
         prod[field] = val;
         saveState();
         renderCatalogGrid();
+        syncInventoryToCloud();
       }
     }
 
@@ -1408,6 +1500,7 @@
         saveState();
         renderInventoryTable();
         renderCatalogGrid();
+        syncInventoryToCloud();
       }
     }
 
@@ -1478,6 +1571,9 @@
       closeProductModal();
       renderCatalogGrid();
       renderInventoryTable();
+
+      // Live sync to Google Sheet
+      syncInventoryToCloud();
     }
 
     function editProduct(id) {
@@ -1492,6 +1588,7 @@
         saveState();
         renderCatalogGrid();
         renderInventoryTable();
+        syncInventoryToCloud();
       }
     }
 
@@ -1667,7 +1764,8 @@
           renderCatalogGrid();
           renderInventoryTable();
           renderDaybookTable();
-          alert("Backup data restored successfully!");
+          syncInventoryToCloud();
+          alert("Backup data restored & synced successfully!");
           closeBackupModal();
         } catch(err) {
           alert("Invalid backup file!");
